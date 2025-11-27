@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useChat } from "@ai-sdk/react";
-import { ArrowUp, Loader2, Plus, Square, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2, Plus, Square } from "lucide-react";
 import { MessageWall } from "@/components/messages/message-wall";
 import { ChatHeader } from "@/app/parts/chat-header";
 import { ChatHeaderBlock } from "@/app/parts/chat-header";
@@ -109,18 +109,24 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center font-sans bg-gradient-to-br from-black via-gray-900 to-gray-800">
-      <main className="w-full h-screen relative text-white">
+    <div className="flex h-screen items-center justify-center font-sans bg-[#F7F7F8]">
+      <main className="w-full h-screen relative text-[#1A1A1A]">
 
-        {/* HEADER — GLASS + GRADIENT */}
-        <div className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-white/10 bg-white/5">
+        {/* HEADER — SOFT, MINIMAL, PREMIUM */}
+        <div className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-white/70 border-b border-neutral-200">
           <ChatHeader>
             <ChatHeaderBlock />
 
             <ChatHeaderBlock className="justify-center items-center gap-2">
-              <Sparkles className="text-yellow-300" />
-              <p className="text-lg tracking-tight bg-gradient-to-r from-pink-400 to-yellow-300 text-transparent bg-clip-text font-semibold">
-                {AI_NAME}
+              <Avatar className="size-8 ring-1 ring-neutral-300">
+                <AvatarImage src="/logo.png" />
+                <AvatarFallback className="bg-neutral-200">
+                  <Image src="/logo.png" alt="Logo" width={36} height={36} />
+                </AvatarFallback>
+              </Avatar>
+
+              <p className="text-[15px] font-medium text-neutral-800">
+                Chat with {AI_NAME}
               </p>
             </ChatHeaderBlock>
 
@@ -128,7 +134,7 @@ export default function Chat() {
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer backdrop-blur-xl border-white/20"
+                className="cursor-pointer border-neutral-300 text-neutral-700"
                 onClick={clearChat}
               >
                 <Plus className="size-4" />
@@ -139,7 +145,7 @@ export default function Chat() {
         </div>
 
         {/* CHAT AREA */}
-        <div className="h-screen overflow-y-auto px-5 py-4 w-full pt-[100px] pb-[150px]">
+        <div className="h-screen overflow-y-auto px-5 py-4 w-full pt-[92px] pb-[150px]">
           <div className="flex flex-col items-center justify-end min-h-full space-y-4">
 
             {isClient ? (
@@ -153,21 +159,21 @@ export default function Chat() {
 
                 {status === "submitted" && (
                   <div className="flex justify-start max-w-3xl w-full">
-                    <Loader2 className="size-5 animate-spin text-gray-400" />
+                    <Loader2 className="size-5 animate-spin text-neutral-500" />
                   </div>
                 )}
               </>
             ) : (
               <div className="flex justify-center max-w-2xl w-full">
-                <Loader2 className="size-5 animate-spin text-gray-400" />
+                <Loader2 className="size-5 animate-spin text-neutral-500" />
               </div>
             )}
           </div>
         </div>
 
-        {/* INPUT BAR — SEXY GLASSMORPHIC */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl border-t border-white/10 bg-white/5">
-          <div className="w-full px-5 pt-5 pb-3 flex justify-center">
+        {/* INPUT BAR — CLEAN, WHITE, NICELY ROUNDED */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md bg-white/90 border-t border-neutral-200">
+          <div className="w-full px-5 pt-4 pb-3 flex justify-center">
             <div className="max-w-3xl w-full">
               <form id="chat-form" onSubmit={form.handleSubmit(onSubmit)}>
                 <FieldGroup>
@@ -184,8 +190,8 @@ export default function Chat() {
                           <Input
                             {...field}
                             id="chat-form-message"
-                            className="h-14 pr-14 pl-5 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-gray-300 backdrop-blur-lg"
-                            placeholder="Tell me your skin concerns..."
+                            className="h-14 pr-14 pl-5 rounded-xl bg-white border border-neutral-300 text-neutral-900 placeholder-neutral-500 shadow-sm"
+                            placeholder="Type something…"
                             disabled={status === "streaming"}
                             aria-invalid={fieldState.invalid}
                             autoComplete="off"
@@ -200,7 +206,7 @@ export default function Chat() {
                           {/* SEND BUTTON */}
                           {(status === "ready" || status === "error") && (
                             <Button
-                              className="absolute right-3 top-3 rounded-full bg-gradient-to-r from-pink-500 to-yellow-300 text-black"
+                              className="absolute right-3 top-3 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white"
                               type="submit"
                               disabled={!field.value.trim()}
                               size="icon"
@@ -212,13 +218,13 @@ export default function Chat() {
                           {/* STOP BUTTON */}
                           {(status === "streaming" || status === "submitted") && (
                             <Button
-                              className="absolute right-3 top-3 rounded-full bg-white/20 border border-white/30 backdrop-blur-xl"
+                              className="absolute right-3 top-3 rounded-full bg-neutral-300 text-neutral-900"
                               size="icon"
                               onClick={() => {
                                 stop();
                               }}
                             >
-                              <Square className="size-4 text-white" />
+                              <Square className="size-4" />
                             </Button>
                           )}
                         </div>
@@ -230,9 +236,8 @@ export default function Chat() {
             </div>
           </div>
 
-          {/* FOOTER */}
-          <div className="w-full px-5 py-2 flex justify-center text-xs text-gray-400">
-            © {new Date().getFullYear()} {OWNER_NAME} — Powered by{" "}
+          <div className="w-full px-5 py-2 flex justify-center text-xs text-neutral-500">
+            © {new Date().getFullYear()} {OWNER_NAME} • Powered by{" "}
             <Link href="https://ringel.ai/" className="underline ml-1">
               Ringel AI
             </Link>
