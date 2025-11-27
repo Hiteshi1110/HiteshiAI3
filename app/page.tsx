@@ -16,7 +16,7 @@ import { ArrowUp, Loader2, Square, Plus } from "lucide-react";
 import { MessageWall } from "@/components/messages/message-wall";
 import { ChatHeader, ChatHeaderBlock } from "@/app/parts/chat-header";
 
-import { AI_NAME, CLEAR_CHAT_TEXT, OWNER_NAME } from "@/config";
+import { AI_NAME, CLEAR_CHAT_TEXT, OWNER_NAME, WELCOME_MESSAGE } from "@/config";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -59,7 +59,7 @@ const saveMessagesToStorage = (messages: UIMessage[], durations: Record<string, 
   } catch {}
 };
 
-export default function ChatPage(): JSX.Element {
+export default function ChatPage() {
   const [isClient, setIsClient] = useState(false);
   const [durations, setDurations] = useState<Record<string, number>>({});
   const welcomeRef = useRef(false);
@@ -99,8 +99,7 @@ export default function ChatPage(): JSX.Element {
       parts: [
         {
           type: "text",
-          text: `Hello, I am **Hiteshi Sharma** 💗  
-I'm here to help you choose the right skincare products, explain ingredients simply, and guide you to glowing skin. How can I help you today? ✨`,
+          text: `👋 Hello, I am **Hiteshi Sharma**!\n\nI can help you choose the right skincare products, explain ingredients in simple terms, and guide you toward glowing skin ✨\n\nWhat would you like to ask me today?`,
         },
       ],
     };
@@ -139,8 +138,9 @@ I'm here to help you choose the right skincare products, explain ingredients sim
   };
 
   return (
-    <div className="flex h-screen justify-center font-sans bg-gradient-to-br from-pink-100 via-purple-100 to-pink-50">
+    <div className="flex h-screen justify-center font-sans bg-gradient-to-br from-pink-50 via-purple-50 to-pink-100">
       <main className="w-full h-screen relative backdrop-blur-xl bg-white/10">
+
         {/* HEADER */}
         <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/40 bg-gradient-to-r from-pink-200 via-purple-200 to-pink-200 shadow-lg backdrop-blur-xl">
           <ChatHeader>
@@ -262,6 +262,7 @@ I'm here to help you choose the right skincare products, explain ingredients sim
             </div>
           </div>
         </div>
+
       </main>
     </div>
   );
