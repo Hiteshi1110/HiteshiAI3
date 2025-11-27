@@ -42,13 +42,12 @@ const loadMessagesFromStorage = (): StorageData => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { messages: [], durations: {} };
-    const parsed = JSON.parse(raw) as Partial<StorageData> | null;
+    const parsed = JSON.parse(raw) as Partial<StorageData>;
     return {
-      messages: parsed?.messages ?? [],
-      durations: parsed?.durations ?? {},
+      messages: parsed.messages ?? [],
+      durations: parsed.durations ?? {},
     };
-  } catch (e) {
-    console.warn("Failed to parse stored messages", e);
+  } catch {
     return { messages: [], durations: {} };
   }
 };
@@ -56,11 +55,8 @@ const loadMessagesFromStorage = (): StorageData => {
 const saveMessagesToStorage = (messages: UIMessage[], durations: Record<string, number>) => {
   if (typeof window === "undefined") return;
   try {
-    const payload: StorageData = { messages, durations };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch (e) {
-    console.warn("Failed to save messages to storage", e);
-  }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, durations }));
+  } catch {}
 };
 
 export default function ChatPage(): JSX.Element {
@@ -68,38 +64,33 @@ export default function ChatPage(): JSX.Element {
   const [durations, setDurations] = useState<Record<string, number>>({});
   const welcomeRef = useRef(false);
 
-  const stored = typeof window !== "undefined" ? loadMessagesFromStorage() : { messages: [], durations: {} };
-  const [initialMessages] = useState<UIMessage[]>(stored.messages ?? []);
+  const stored =
+    typeof window !== "undefined"
+      ? loadMessagesFromStorage()
+      : { messages: [], durations: {} };
+
+  const [initialMessages] = useState<UIMessage[]>(stored.messages);
 
   const { messages, sendMessage, status, stop, setMessages } = useChat({
     messages: initialMessages,
   });
 
-  // hydration: set client flag and initialize durations/messages safely
   useEffect(() => {
     setIsClient(true);
-    setDurations(stored.durations ?? {});
-    // setMessages might be a stable function from useChat; guard it
+    setDurations(stored.durations);
     try {
-      if (typeof setMessages === "function") {
-        setMessages(stored.messages ?? []);
-      }
-    } catch (e) {
-      console.warn("Could not set initial messages", e);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
+      setMessages(stored.messages);
+    } catch {}
+  }, []);
 
-  // persist
   useEffect(() => {
     if (!isClient) return;
-    saveMessagesToStorage(messages ?? [], durations ?? {});
+    saveMessagesToStorage(messages, durations);
   }, [messages, durations, isClient]);
 
-  // welcome intro inside chat (first message)
   useEffect(() => {
     if (!isClient) return;
-    if ((initialMessages?.length ?? 0) > 0) return;
+    if (initialMessages.length > 0) return;
     if (welcomeRef.current) return;
 
     const intro: UIMessage = {
@@ -108,19 +99,17 @@ export default function ChatPage(): JSX.Element {
       parts: [
         {
           type: "text",
-          text: `Hello, I am **Hiteshi Sharma** 💗\nI'm here to help you choose the *right skincare products*, explain ingredients clearly, and solve your skin concerns with simple, science-backed advice. How can I help you glow today? ✨`,
+          text: `Hello, I am **Hiteshi Sharma** 💗  
+I'm here to help you choose the right skincare products, explain ingredients simply, and guide you to glowing skin. How can I help you today? ✨`,
         },
       ],
     };
 
     try {
-      if (typeof setMessages === "function") {
-        setMessages([intro]);
-        saveMessagesToStorage([intro], {});
-      }
-    } catch (e) {
-      console.warn("Failed to set welcome message", e);
-    }
+      setMessages([intro]);
+      saveMessagesToStorage([intro], {});
+    } catch {}
+
     welcomeRef.current = true;
   }, [isClient, initialMessages, setMessages]);
 
@@ -130,40 +119,35 @@ export default function ChatPage(): JSX.Element {
   });
 
   const onSubmit = (data: FormValues) => {
-    // trim and guard
-    const text = (data.message ?? "").trim();
+    const text = data.message.trim();
     if (!text) return;
+
     try {
       sendMessage({ text });
-    } catch (e) {
-      console.warn("sendMessage error", e);
-    }
+    } catch {}
+
     form.reset();
   };
 
   const clearChat = () => {
     try {
-      if (typeof setMessages === "function") setMessages([]);
+      setMessages([]);
       setDurations({});
       saveMessagesToStorage([], {});
       toast.success("Chat cleared!");
-    } catch (e) {
-      console.warn("clearChat error", e);
-    }
+    } catch {}
   };
 
   return (
     <div className="flex h-screen justify-center font-sans bg-gradient-to-br from-pink-100 via-purple-100 to-pink-50">
       <main className="w-full h-screen relative backdrop-blur-xl bg-white/10">
-
         {/* HEADER */}
-        <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/40 bg-gradient-to-r from-pink-200 via-purple-200 to-pink-200 shadow-lg bg-opacity-70 backdrop-blur-xl">
+        <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/40 bg-gradient-to-r from-pink-200 via-purple-200 to-pink-200 shadow-lg backdrop-blur-xl">
           <ChatHeader>
             <ChatHeaderBlock />
 
             <ChatHeaderBlock className="justify-center items-center gap-3">
               <Avatar className="size-10 ring-2 ring-pink-300 shadow-md">
-                {/* AvatarImage is okay to use with a URL string */}
                 <AvatarImage src="/logo.png" alt="logo" />
                 <AvatarFallback>
                   <Image src="/logo.png" alt="Logo" width={36} height={36} />
@@ -189,17 +173,17 @@ export default function ChatPage(): JSX.Element {
           </ChatHeader>
         </div>
 
-        {/* MESSAGES AREA */}
+        {/* CHAT AREA */}
         <div className="h-screen overflow-y-auto px-5 w-full pt-[96px] pb-[170px]">
           <div className="flex flex-col items-center min-h-full">
             {isClient ? (
               <>
                 <MessageWall
-                  messages={messages ?? []}
+                  messages={messages}
                   status={status}
                   durations={durations}
                   onDurationChange={(k: string, v: number) =>
-                    setDurations((d: Record<string, number>) => ({ ...d, [k]: v }))
+                    setDurations((d) => ({ ...d, [k]: v }))
                   }
                 />
 
@@ -217,7 +201,7 @@ export default function ChatPage(): JSX.Element {
           </div>
         </div>
 
-        {/* INPUT BAR */}
+        {/* INPUT */}
         <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-pink-100 via-purple-100 to-transparent backdrop-blur-2xl shadow-inner pt-3 pb-4 px-5">
           <div className="max-w-3xl mx-auto">
             <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -236,3 +220,49 @@ export default function ChatPage(): JSX.Element {
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
+                              form.handleSubmit(onSubmit)();
+                            }
+                          }}
+                        />
+
+                        {/* SEND BTN */}
+                        {(status === "ready" || status === "error") && (
+                          <Button
+                            type="submit"
+                            size="icon"
+                            disabled={!field.value?.trim()}
+                            className="absolute right-3 top-2 bg-pink-500 hover:bg-pink-600 rounded-full text-white shadow"
+                          >
+                            <ArrowUp className="size-4" />
+                          </Button>
+                        )}
+
+                        {/* STOP BTN */}
+                        {(status === "streaming" || status === "submitted") && (
+                          <Button
+                            size="icon"
+                            onClick={() => stop()}
+                            className="absolute right-3 top-2 bg-gray-500 hover:bg-gray-600 rounded-full text-white shadow"
+                          >
+                            <Square className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </form>
+
+            <div className="text-center pt-3 text-xs text-pink-600">
+              © {new Date().getFullYear()} {OWNER_NAME} · Powered by{" "}
+              <Link href="https://ringel.ai/" className="underline">
+                Ringel.AI
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
