@@ -22,6 +22,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { UIMessage } from "ai";
 
+type FormValues = {
+  message: string;
+};
+
 const formSchema = z.object({
   message: z.string().min(1).max(2000),
 });
@@ -33,56 +37,70 @@ type StorageData = {
   durations: Record<string, number>;
 };
 
-const loadMessagesFromStorage = () => {
-  if (typeof window === "undefined")
-    return { messages: [], durations: {} };
-
+const loadMessagesFromStorage = (): StorageData => {
+  if (typeof window === "undefined") return { messages: [], durations: {} };
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { messages: [], durations: {} };
-    const parsed = JSON.parse(stored);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { messages: [], durations: {} };
+    const parsed = JSON.parse(raw) as Partial<StorageData> | null;
     return {
-      messages: parsed.messages || [],
-      durations: parsed.durations || {},
+      messages: parsed?.messages ?? [],
+      durations: parsed?.durations ?? {},
     };
-  } catch {
+  } catch (e) {
+    console.warn("Failed to parse stored messages", e);
     return { messages: [], durations: {} };
   }
 };
 
-const saveMessagesToStorage = (
-  messages: UIMessage[],
-  durations: Record<string, number>
-) => {
+const saveMessagesToStorage = (messages: UIMessage[], durations: Record<string, number>) => {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, durations }));
+  try {
+    const payload: StorageData = { messages, durations };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn("Failed to save messages to storage", e);
+  }
 };
 
-export default function Chat() {
+export default function ChatPage(): JSX.Element {
   const [isClient, setIsClient] = useState(false);
   const [durations, setDurations] = useState<Record<string, number>>({});
   const welcomeRef = useRef(false);
 
-  const stored = loadMessagesFromStorage();
-  const [initialMessages] = useState(stored.messages);
+  const stored = typeof window !== "undefined" ? loadMessagesFromStorage() : { messages: [], durations: {} };
+  const [initialMessages] = useState<UIMessage[]>(stored.messages ?? []);
 
   const { messages, sendMessage, status, stop, setMessages } = useChat({
     messages: initialMessages,
   });
 
+  // hydration: set client flag and initialize durations/messages safely
   useEffect(() => {
     setIsClient(true);
-    setDurations(stored.durations);
-    setMessages(stored.messages);
-  }, []);
+    setDurations(stored.durations ?? {});
+    // setMessages might be a stable function from useChat; guard it
+    try {
+      if (typeof setMessages === "function") {
+        setMessages(stored.messages ?? []);
+      }
+    } catch (e) {
+      console.warn("Could not set initial messages", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
+  // persist
   useEffect(() => {
-    if (isClient) saveMessagesToStorage(messages, durations);
+    if (!isClient) return;
+    saveMessagesToStorage(messages ?? [], durations ?? {});
   }, [messages, durations, isClient]);
 
-  // BEAUTIFUL INTRO MESSAGE (HUMAN TOUCH)
+  // welcome intro inside chat (first message)
   useEffect(() => {
-    if (!isClient || initialMessages.length !== 0 || welcomeRef.current) return;
+    if (!isClient) return;
+    if ((initialMessages?.length ?? 0) > 0) return;
+    if (welcomeRef.current) return;
 
     const intro: UIMessage = {
       id: `welcome-${Date.now()}`,
@@ -90,51 +108,68 @@ export default function Chat() {
       parts: [
         {
           type: "text",
-          text: `Hello, I am **Hiteshi Sharma** 💗  
-I'm here to help you choose the *right skincare products*, guide you through *ingredients*, and solve your *skin concerns* with science-backed clarity.  
-How can I help you glow today? ✨`,
+          text: `Hello, I am **Hiteshi Sharma** 💗\nI'm here to help you choose the *right skincare products*, explain ingredients clearly, and solve your skin concerns with simple, science-backed advice. How can I help you glow today? ✨`,
         },
       ],
     };
 
-    setMessages([intro]);
-    saveMessagesToStorage([intro], {});
+    try {
+      if (typeof setMessages === "function") {
+        setMessages([intro]);
+        saveMessagesToStorage([intro], {});
+      }
+    } catch (e) {
+      console.warn("Failed to set welcome message", e);
+    }
     welcomeRef.current = true;
-  }, [isClient, initialMessages.length, setMessages]);
+  }, [isClient, initialMessages, setMessages]);
 
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { message: "" },
   });
 
-  const onSubmit = (data: any) => {
-    sendMessage({ text: data.message });
+  const onSubmit = (data: FormValues) => {
+    // trim and guard
+    const text = (data.message ?? "").trim();
+    if (!text) return;
+    try {
+      sendMessage({ text });
+    } catch (e) {
+      console.warn("sendMessage error", e);
+    }
     form.reset();
   };
 
   const clearChat = () => {
-    setMessages([]);
-    setDurations({});
-    saveMessagesToStorage([], {});
-    toast.success("Chat cleared!");
+    try {
+      if (typeof setMessages === "function") setMessages([]);
+      setDurations({});
+      saveMessagesToStorage([], {});
+      toast.success("Chat cleared!");
+    } catch (e) {
+      console.warn("clearChat error", e);
+    }
   };
 
   return (
     <div className="flex h-screen justify-center font-sans bg-gradient-to-br from-pink-100 via-purple-100 to-pink-50">
-      <main className="w-full h-screen relative backdrop-blur-xl bg-white/30">
+      <main className="w-full h-screen relative backdrop-blur-xl bg-white/10">
 
         {/* HEADER */}
-        <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/40 bg-gradient-to-r from-pink-200 via-purple-200 to-pink-200 shadow-lg bg-opacity-60 backdrop-blur-xl">
+        <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/40 bg-gradient-to-r from-pink-200 via-purple-200 to-pink-200 shadow-lg bg-opacity-70 backdrop-blur-xl">
           <ChatHeader>
             <ChatHeaderBlock />
 
-            <ChatHeaderBlock className="justify-center items-center">
+            <ChatHeaderBlock className="justify-center items-center gap-3">
               <Avatar className="size-10 ring-2 ring-pink-300 shadow-md">
-                <AvatarImage src="/logo.png" />
+                {/* AvatarImage is okay to use with a URL string */}
+                <AvatarImage src="/logo.png" alt="logo" />
                 <AvatarFallback>
                   <Image src="/logo.png" alt="Logo" width={36} height={36} />
                 </AvatarFallback>
               </Avatar>
+
               <p className="tracking-tight font-semibold text-pink-700">
                 {AI_NAME} — Skincare Assistant
               </p>
@@ -148,35 +183,36 @@ How can I help you glow today? ✨`,
                 onClick={clearChat}
               >
                 <Plus className="size-4" />
-                {CLEAR_CHAT_TEXT}
+                <span className="ml-2">{CLEAR_CHAT_TEXT}</span>
               </Button>
             </ChatHeaderBlock>
           </ChatHeader>
         </div>
 
         {/* MESSAGES AREA */}
-        <div className="h-screen overflow-y-auto px-5 w-full pt-[90px] pb-[150px]">
+        <div className="h-screen overflow-y-auto px-5 w-full pt-[96px] pb-[170px]">
           <div className="flex flex-col items-center min-h-full">
             {isClient ? (
               <>
                 <MessageWall
-                  messages={messages}
+                  messages={messages ?? []}
                   status={status}
                   durations={durations}
                   onDurationChange={(k: string, v: number) =>
-                    setDurations((d: Record<string, number>) => ({
-                      ...d,
-                      [k]: v,
-                    }))
+                    setDurations((d: Record<string, number>) => ({ ...d, [k]: v }))
                   }
                 />
 
                 {status === "submitted" && (
-                  <Loader2 className="size-4 animate-spin text-pink-500" />
+                  <div className="mt-3">
+                    <Loader2 className="size-4 animate-spin text-pink-500" />
+                  </div>
                 )}
               </>
             ) : (
-              <Loader2 className="size-4 animate-spin text-pink-500" />
+              <div className="mt-6">
+                <Loader2 className="size-4 animate-spin text-pink-500" />
+              </div>
             )}
           </div>
         </div>
@@ -194,32 +230,9 @@ How can I help you glow today? ✨`,
                       <div className="relative">
                         <Input
                           {...field}
-                          className="h-14 pl-5 pr-16 bg-white/70 backdrop-blur-xl border border-pink-200 rounded-2xl shadow-md focus:ring-pink-400 text-gray-700 placeholder:text-pink-400"
+                          className="h-14 pl-5 pr-16 bg-white/80 backdrop-blur-xl border border-pink-200 rounded-2xl shadow-md focus:ring-pink-400 text-gray-800 placeholder:text-pink-400"
                           placeholder="Ask me anything about skincare..."
                           disabled={status === "streaming"}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
-                              form.handleSubmit(onSubmit)();
-                            }
-                          }}
-                        />
-
-                        {/* Send Button */}
-                        {(status === "ready" || status === "error") && (
-                          <Button
-                            type="submit"
-                            size="icon"
-                            disabled={!field.value.trim()}
-                            className="absolute right-3 top-2 bg-pink-500 hover:bg-pink-600 rounded-full text-white shadow"
-                          >
-                            <ArrowUp className="size-4" />
-                          </Button>
-                        )}
-
-                        {/* Stop Button */}
-                        {(status === "streaming" || status === "submitted") && (
-                          <Button
-                            size="icon"
-                            onClick={stop}
-                            className="absolute right-3 top-2 bg
