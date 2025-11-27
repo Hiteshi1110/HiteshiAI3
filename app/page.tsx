@@ -2,146 +2,161 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { toast } from "sonner";
 import * as z from "zod";
+import { useChat } from "@ai-sdk/react";
+import { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useChat } from "@ai-sdk/react";
-import { ArrowUp, Loader2, Plus, Square } from "lucide-react";
+import { Field, FieldGroup } from "@/components/ui/field";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+import { ArrowUp, Loader2, Square, Plus } from "lucide-react";
 import { MessageWall } from "@/components/messages/message-wall";
 import { ChatHeader, ChatHeaderBlock } from "@/app/parts/chat-header";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UIMessage } from "ai";
-import { useEffect, useState, useRef } from "react";
+
 import { AI_NAME, CLEAR_CHAT_TEXT, OWNER_NAME } from "@/config";
+
 import Image from "next/image";
 import Link from "next/link";
+import { UIMessage } from "ai";
 
 const formSchema = z.object({
-  message: z
-    .string()
-    .min(1, "Message cannot be empty.")
-    .max(2000, "Message must be at most 2000 characters."),
+  message: z.string().min(1).max(2000),
 });
 
 const STORAGE_KEY = "chat-messages";
 
+type StorageData = {
+  messages: UIMessage[];
+  durations: Record<string, number>;
+};
+
+const loadMessagesFromStorage = () => {
+  if (typeof window === "undefined")
+    return { messages: [], durations: {} };
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return { messages: [], durations: {} };
+    const parsed = JSON.parse(stored);
+    return {
+      messages: parsed.messages || [],
+      durations: parsed.durations || {},
+    };
+  } catch {
+    return { messages: [], durations: {} };
+  }
+};
+
+const saveMessagesToStorage = (
+  messages: UIMessage[],
+  durations: Record<string, number>
+) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, durations }));
+};
+
 export default function Chat() {
   const [isClient, setIsClient] = useState(false);
-  const welcomeMessageShown = useRef(false);
+  const [durations, setDurations] = useState<Record<string, number>>({});
+  const welcomeRef = useRef(false);
 
-  // Load from storage
-  const stored =
-    typeof window !== "undefined"
-      ? JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || {
-          messages: [],
-          durations: {},
-        }
-      : { messages: [], durations: {} };
+  const stored = loadMessagesFromStorage();
+  const [initialMessages] = useState(stored.messages);
 
-  const [durations, setDurations] = useState(stored.durations);
-  const [initialMessages] = useState<UIMessage[]>(stored.messages);
-
-  const { messages, sendMessage, stop, status, setMessages } = useChat({
+  const { messages, sendMessage, status, stop, setMessages } = useChat({
     messages: initialMessages,
   });
 
   useEffect(() => {
     setIsClient(true);
-    setMessages(stored.messages);
     setDurations(stored.durations);
+    setMessages(stored.messages);
   }, []);
 
-  // Save
   useEffect(() => {
-    if (!isClient) return;
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        messages,
-        durations,
-      })
-    );
+    if (isClient) saveMessagesToStorage(messages, durations);
   }, [messages, durations, isClient]);
 
-  // Warm Beautiful Welcome Message
+  // BEAUTIFUL INTRO MESSAGE (HUMAN TOUCH)
   useEffect(() => {
-    if (!isClient) return;
-    if (initialMessages.length === 0 && !welcomeMessageShown.current) {
-      const welcome: UIMessage = {
-        id: `welcome-${Date.now()}`,
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: `👋 **Hello, I’m Hiteshi Sharma.**  
-I’m here to help you with anything—whether it’s marketing strategy, career guidance, content creation, or making sense of something complex.  
-Just tell me what you need, and I’ll assist you instantly.`,
-          },
-        ],
-      };
-      setMessages([welcome]);
-      welcomeMessageShown.current = true;
-    }
-  }, [isClient]);
+    if (!isClient || initialMessages.length !== 0 || welcomeRef.current) return;
+
+    const intro: UIMessage = {
+      id: `welcome-${Date.now()}`,
+      role: "assistant",
+      parts: [
+        {
+          type: "text",
+          text: `Hello, I am **Hiteshi Sharma** 💗  
+I'm here to help you choose the *right skincare products*, guide you through *ingredients*, and solve your *skin concerns* with science-backed clarity.  
+How can I help you glow today? ✨`,
+        },
+      ],
+    };
+
+    setMessages([intro]);
+    saveMessagesToStorage([intro], {});
+    welcomeRef.current = true;
+  }, [isClient, initialMessages.length, setMessages]);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: { message: "" },
   });
 
-  function onSubmit(data: any) {
+  const onSubmit = (data: any) => {
     sendMessage({ text: data.message });
     form.reset();
-  }
+  };
 
-  function clearChat() {
+  const clearChat = () => {
     setMessages([]);
     setDurations({});
-    localStorage.removeItem(STORAGE_KEY);
-    toast.success("Chat cleared");
-  }
+    saveMessagesToStorage([], {});
+    toast.success("Chat cleared!");
+  };
 
   return (
-    <div className="flex h-screen items-center justify-center font-sans dark:bg-black">
-      <main className="w-full dark:bg-black h-screen relative">
+    <div className="flex h-screen justify-center font-sans bg-gradient-to-br from-pink-100 via-purple-100 to-pink-50">
+      <main className="w-full h-screen relative backdrop-blur-xl bg-white/30">
 
-        {/* TOP HEADER */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-white/10">
+        {/* HEADER */}
+        <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/40 bg-gradient-to-r from-pink-200 via-purple-200 to-pink-200 shadow-lg bg-opacity-60 backdrop-blur-xl">
           <ChatHeader>
             <ChatHeaderBlock />
-            <ChatHeaderBlock className="justify-center items-center space-x-2">
-              <Avatar className="size-8">
+
+            <ChatHeaderBlock className="justify-center items-center">
+              <Avatar className="size-10 ring-2 ring-pink-300 shadow-md">
                 <AvatarImage src="/logo.png" />
                 <AvatarFallback>
                   <Image src="/logo.png" alt="Logo" width={36} height={36} />
                 </AvatarFallback>
               </Avatar>
-              <p className="tracking-tight font-medium text-sm">
-                Chat with {AI_NAME}
+              <p className="tracking-tight font-semibold text-pink-700">
+                {AI_NAME} — Skincare Assistant
               </p>
             </ChatHeaderBlock>
 
-            <ChatHeaderBlock className="justify-end pr-3">
+            <ChatHeaderBlock className="justify-end">
               <Button
                 variant="outline"
                 size="sm"
+                className="cursor-pointer bg-white/60 hover:bg-white/80 text-pink-700 border-pink-300"
                 onClick={clearChat}
-                className="text-xs flex space-x-1"
               >
                 <Plus className="size-4" />
-                <span>{CLEAR_CHAT_TEXT}</span>
+                {CLEAR_CHAT_TEXT}
               </Button>
             </ChatHeaderBlock>
           </ChatHeader>
         </div>
 
-        {/* MAIN CHAT AREA */}
-        <div className="h-screen overflow-y-auto px-5 py-4 w-full pt-[90px] pb-[150px]">
-          <div className="flex flex-col items-center justify-end min-h-full">
-
+        {/* MESSAGES AREA */}
+        <div className="h-screen overflow-y-auto px-5 w-full pt-[90px] pb-[150px]">
+          <div className="flex flex-col items-center min-h-full">
             {isClient ? (
               <>
                 <MessageWall
@@ -149,91 +164,62 @@ Just tell me what you need, and I’ll assist you instantly.`,
                   status={status}
                   durations={durations}
                   onDurationChange={(k: string, v: number) =>
-                    setDurations((d) => ({ ...d, [k]: v }))
+                    setDurations((d: Record<string, number>) => ({
+                      ...d,
+                      [k]: v,
+                    }))
                   }
                 />
 
                 {status === "submitted" && (
-                  <div className="flex justify-start max-w-3xl w-full">
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                  </div>
+                  <Loader2 className="size-4 animate-spin text-pink-500" />
                 )}
               </>
             ) : (
-              <div className="flex justify-center max-w-2xl w-full">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              </div>
+              <Loader2 className="size-4 animate-spin text-pink-500" />
             )}
           </div>
         </div>
 
-        {/* INPUT BOX */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-white/10">
-          <div className="w-full px-5 pt-4 pb-3 flex justify-center">
-            <div className="max-w-3xl w-full">
-              <form onSubmit={form.handleSubmit(onSubmit)}>
-                <FieldGroup>
-                  <Controller
-                    name="message"
-                    control={form.control}
-                    render={({ field, fieldState }) => (
-                      <Field data-invalid={fieldState.invalid}>
-                        <FieldLabel className="sr-only">Message</FieldLabel>
+        {/* INPUT BAR */}
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-pink-100 via-purple-100 to-transparent backdrop-blur-2xl shadow-inner pt-3 pb-4 px-5">
+          <div className="max-w-3xl mx-auto">
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              <FieldGroup>
+                <Controller
+                  name="message"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Field>
+                      <div className="relative">
+                        <Input
+                          {...field}
+                          className="h-14 pl-5 pr-16 bg-white/70 backdrop-blur-xl border border-pink-200 rounded-2xl shadow-md focus:ring-pink-400 text-gray-700 placeholder:text-pink-400"
+                          placeholder="Ask me anything about skincare..."
+                          disabled={status === "streaming"}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              form.handleSubmit(onSubmit)();
+                            }
+                          }}
+                        />
 
-                        <div className="relative">
-                          <Input
-                            {...field}
-                            placeholder="Type your message…"
-                            className="h-14 pl-5 pr-16 bg-white/10 border-white/20 text-white placeholder-white/40 rounded-2xl backdrop-blur-lg focus:ring-2 focus:ring-primary"
-                            disabled={status === "streaming"}
-                            autoComplete="off"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                form.handleSubmit(onSubmit)();
-                              }
-                            }}
-                          />
+                        {/* Send Button */}
+                        {(status === "ready" || status === "error") && (
+                          <Button
+                            type="submit"
+                            size="icon"
+                            disabled={!field.value.trim()}
+                            className="absolute right-3 top-2 bg-pink-500 hover:bg-pink-600 rounded-full text-white shadow"
+                          >
+                            <ArrowUp className="size-4" />
+                          </Button>
+                        )}
 
-                          {status === "ready" && (
-                            <Button
-                              className="absolute right-2 top-2 rounded-full"
-                              type="submit"
-                              size="icon"
-                              disabled={!field.value.trim()}
-                            >
-                              <ArrowUp className="size-4" />
-                            </Button>
-                          )}
-
-                          {(status === "streaming" ||
-                            status === "submitted") && (
-                            <Button
-                              className="absolute right-2 top-2 rounded-full"
-                              size="icon"
-                              onClick={() => stop()}
-                            >
-                              <Square className="size-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </Field>
-                    )}
-                  />
-                </FieldGroup>
-              </form>
-            </div>
-          </div>
-
-          {/* FOOTER */}
-          <div className="w-full text-center py-2 text-xs text-muted-foreground">
-            © {new Date().getFullYear()} {OWNER_NAME} — Powered by{" "}
-            <Link href="https://ringel.ai/" className="underline">
-              Ringel.AI
-            </Link>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+                        {/* Stop Button */}
+                        {(status === "streaming" || status === "submitted") && (
+                          <Button
+                            size="icon"
+                            onClick={stop}
+                            className="absolute right-3 top-2 bg
